@@ -47,7 +47,7 @@ class GxConn {
 	public $col_whitelist;								/** @col_whitelist A whitelist of columns that can be queried. Expects a array. */
 	public $tbl_whitelist;								/** @tbl_whitelist A whitelist of tables that can be queried. Expects a array. */
 	public $get_last_stmt;								/** @get_last_stmt Returns the statement you last queried. */
-	public $blacklist = array("DROP", "DELETE", "--");	/** @blacklist An array of forbidden clause words. Case does not matter. Defaults to array("DROP", "DELETE", "--"); */
+	public $blacklist = array("DROP", "DELETE", "--");		/** @blacklist An array of forbidden clause words. Case does not matter. Defaults to array("DROP", "DELETE", "--"); */
 	
 	private $c;
 	
@@ -77,7 +77,10 @@ class GxConn {
 				if($i > 0) { $regex .= "|"; }			
 				$regex .= $this->blacklist[$i];
 			}
-						
+			
+			//remove all strings in order to test clauses
+			$s = preg_replace("/\".*?\"|'.*?'/", "", $s);
+				
 			if(preg_match("/$regex/i", $s)) {
 				throw new GXConnException('Your query statement contains a blacklisted clause.', 3);
 			}
@@ -85,7 +88,10 @@ class GxConn {
 	}
 	
 	private function semicolon_check($s) {	
-		if(preg_match("/;/i", $s)) {
+		//remove all strings in order to test clauses
+		$s = preg_replace("/\".*?\"|'.*?'/", "", $s);
+		
+		if(preg_match("/;/", $s)) {
 			throw new GXConnException('Your query statement cannot contain a semi-colon.', 4);
 		}
 	}
