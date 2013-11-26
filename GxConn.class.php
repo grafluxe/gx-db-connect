@@ -47,7 +47,7 @@ class GxConn {
 	public $col_whitelist;								/** @col_whitelist A whitelist of columns that can be queried. Expects a array. */
 	public $tbl_whitelist;								/** @tbl_whitelist A whitelist of tables that can be queried. Expects a array. */
 	public $get_last_stmt;								/** @get_last_stmt Returns the statement you last queried. */
-	public $blacklist = array("DROP", "DELETE", "--");		/** @blacklist An array of forbidden clause words. Case does not matter. Defaults to array("DROP", "DELETE", "--"); */
+	public $blacklist = array("DROP", "DELETE", "--");	/** @blacklist An array of forbidden clause words. Case does not matter. Defaults to array("DROP", "DELETE", "--"); */
 	
 	private $c;
 	
@@ -58,7 +58,7 @@ class GxConn {
 		try {
 			$this->c = new PDO($dsn, $usr, $pw, $opts);
 		}catch(PDOException $e) {
-			throw new GxConnException("There was problem connecting to your database.", 1);
+			throw new GxConnException($e->getMessage(), 1);
 		}
 		
 		$this->c->setAttribute(PDO::ATTR_EMULATE_PREPARES, false);
@@ -82,7 +82,7 @@ class GxConn {
 			$s = preg_replace("/\".*?\"|'.*?'/", "", $s);
 				
 			if(preg_match("/$regex/i", $s)) {
-				throw new GXConnException('Your query statement contains a blacklisted clause.', 3);
+				throw new GXConnException('Your query statement contains a blacklisted clause.', 3, NULL);
 			}
 		}
 	}
@@ -326,6 +326,14 @@ class GxConnException extends Exception {
     public function __toString() {
 		return __CLASS__ . ": [error #{$this->code}] {$this->message}";
     }
+	
+	public function message() {
+		return $this->message;	
+	}
+	
+	public function code() {
+		return $this->code;	
+	}
 	
 }
 
