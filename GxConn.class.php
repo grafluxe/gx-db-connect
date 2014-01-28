@@ -18,18 +18,18 @@ class GxConn {
 	/** [example	] 
 		$gxConn = new GXConn("mysql:host=localhost;dbname=tester;charset=utf8");
 			
-		$gxConn->col_whitelist = array('first', 'last');
-		$gxConn->tbl_whitelist = array('test_table');
+		$gxConn->col_whitelist = array("first", "last");
+		$gxConn->tbl_whitelist = array("test_table");
 		
-		$col1 = $_GET['first'];
-		$col2 = $_GET['last'];
+		$col1 = $_GET["first"];
+		$col2 = $_GET["last"];
 		
 		$r = $gxConn->query("
 			SELECT {$gxConn->col_check($col1)}
 			FROM {$gxConn->tbl_check(test_table)}
 			WHERE {$gxConn->col_check($col2)} = :ln
 		", array(
-			$gxConn->bind_value(':ln', 'Doe')
+			$gxConn->bind_value(":ln", "Doe")
 		), PDO::FETCH_BOTH
 		);
 	
@@ -82,7 +82,7 @@ class GxConn {
 			$s = preg_replace("/\".*?\"|'.*?'/", "", $s);
 				
 			if(preg_match("/$regex/i", $s)) {
-				throw new GXConnException('Your query statement contains a blacklisted clause.', 3, NULL);
+				throw new GXConnException("Your query statement contains a blacklisted clause.", 3, NULL);
 			}
 		}
 	}
@@ -92,15 +92,20 @@ class GxConn {
 		$s = preg_replace("/\".*?\"|'.*?'/", "", $s);
 		
 		if(preg_match("/;/", $s)) {
-			throw new GXConnException('Your query statement cannot contain a semi-colon.', 4);
+			throw new GXConnException("Your query statement cannot contain a semi-colon.", 4);
 		}
+	}
+	
+	/** @select_db Selects a database. */
+	public function select_db($db) {
+		$this->conn->exec("USE $db");	
 	}
 	
 	/** @col_check Checks if a column in allowed to be used (via the column whitelist). */
 	public function col_check($col) {
 		if(isset($this->col_whitelist)) {
 			if(! (array_search($col, $this->col_whitelist, true) !== false)) {
-				throw new GXConnException('You do not have permission to query one of the columns in your statement.', 1);
+				throw new GXConnException("You do not have permission to query one of the columns in your statement.", 1);
 			}
 		}
 		
@@ -111,7 +116,7 @@ class GxConn {
 	public function tbl_check($tbl) {
 		if(isset($this->tbl_whitelist)) {
 			if(! (array_search($tbl, $this->tbl_whitelist, true) !== false)) {
-				throw new GXConnException('You do not have permission to query one of the tables in your statement.', 2);
+				throw new GXConnException("You do not have permission to query one of the tables in your statement.", 2);
 			}
 		}
 		
@@ -130,7 +135,7 @@ class GxConn {
 		$this->semicolon_check($stmt);
 		$this->blacklist_check($stmt);	
 				
-		$q = $this->c->prepare($stmt . ';');
+		$q = $this->c->prepare($stmt . ";");
 		$this->get_last_stmt = $q->queryString;
 		
 		if(isset($bind)) {
@@ -155,10 +160,9 @@ class GxConn {
 		 
 	 /** @run_tbl_exists Returns a boolean determining whether a table exists. */
 	public function run_tbl_exists($tbl) {
-		$q = $this->c->prepare("SELECT 1 FROM {$this->tbl_check($tbl)};");
-		$this->get_last_stmt = $q->queryString;
-		
 		try {
+			$q = $this->c->prepare("SELECT 1 FROM {$this->tbl_check($tbl)};");
+			$this->get_last_stmt = $q->queryString;
 			$q->closeCursor();
 			$q->execute();
 			
@@ -206,10 +210,9 @@ class GxConn {
 	
 	/** @run_col_exists Returns a boolean determining whether a column exists. */
 	public function run_col_exists($col, $tbl) {
-		$q = $this->c->prepare("SELECT {$this->col_check($col)} FROM {$this->tbl_check($tbl)};");
-		$this->get_last_stmt = $q->queryString;
-		
 		try {
+			$q = $this->c->prepare("SELECT {$this->col_check($col)} FROM {$this->tbl_check($tbl)};");
+			$this->get_last_stmt = $q->queryString;
 			$q->closeCursor();
 			$q->execute();
 			
@@ -251,10 +254,10 @@ class GxConn {
 	
 	/** @run_tbl_to_html Echos a table with your database data. */
 	public function run_tbl_to_html($tbl, $start_at_col = 0) {		
-		$bg_color = '#CCC';
-		$col_color_odd = '#F9F9F9';
-		$col_color_even = '#F0F0F0';
-		$header_color = '#9C9C9C';
+		$bg_color = "#CCC";
+		$col_color_odd = "#F9F9F9";
+		$col_color_even = "#F0F0F0";
+		$header_color = "#9C9C9C";
 		$alt_row = true;
 		$len = $this->run_col_count($tbl);
 		$arr = $this->run_col_info($tbl);
@@ -262,7 +265,7 @@ class GxConn {
 		$row_num = 1;
 	
 		for($i = 0; $i < count($arr); $i++) {
-			$col_names[ ] = $arr[$i]['Field'];
+			$col_names[ ] = $arr[$i]["Field"];
 		}
 		
 		$q = $this->query("SELECT * FROM {$this->tbl_check($tbl)}", NULL, PDO::FETCH_NUM);
@@ -270,13 +273,13 @@ class GxConn {
 		if($start_at_col > $len) { $start_at_col = ($len - 1); }
 		if($start_at_col < 0) { $start_at_col = 0; }
 		
-		echo "<table id='GxConnTable' style='width:100%; background-color:$bg_color; text-align:center'>";
+		echo "<table id=\"GxConnTable\" style=\"width:100%; background-color:$bg_color; text-align:center\">";
 		
 		//heads
 		for($i = $start_at_col; $i < $len; $i++) {
 			$col_num = $i + 1;
 			
-			echo "<td class='cols col$col_num colHeaders colHeader$col_num' style='padding:3px 12px; background-color:$header_color;'>$col_names[$i]</td>";
+			echo "<td class=\"cols col$col_num colHeaders colHeader$col_num\" style=\"padding:3px 12px; background-color:$header_color;\">$col_names[$i]</td>";
 		}
 
 		//data
@@ -286,28 +289,28 @@ class GxConn {
 					if($alt_row) {
 						$alt_row = false;
 						$colColor = $col_color_odd;
-						$alt_row_class = 'oddRow';
+						$alt_row_class = "oddRow";
 					}else {
 						$alt_row = true;
 						$colColor = $col_color_even;
-						$alt_row_class = 'evenRow';
+						$alt_row_class = "evenRow";
 					}
 				}
 				
-				if(($i % $len) == $start_at_col) { echo '<tr>'; }
+				if(($i % $len) == $start_at_col) { echo "<tr>"; }
 				
 				$col_num = $i + 1;
 				
-				echo "<td class='cols col$col_num $alt_row_class row$row_num' style='padding:3px 12px; background-color:$colColor;'>$row[$i]</td>";
+				echo "<td class=\"cols col$col_num $alt_row_class row$row_num\" style=\"padding:3px 12px; background-color:$colColor;\">$row[$i]</td>";
 				
 				if($i == ($len - 1)) { 
-					echo '</tr>';  
+					echo "</tr>";  
 					$row_num++;
 				}				
 			}
 		}
 		
-		echo '</table>';
+		echo "</table>";
 	}
 	
 	
@@ -316,8 +319,6 @@ class GxConn {
 //-----------------------------------------------------------------------
 
 class GxConnException extends Exception {
-	/** [author] Leandro Silva | Grafluxe.com */
-
 	/** @__construct Constructor. Custom exception.*/
     public function __construct($message, $code) {
 		parent::__construct($message, $code);
@@ -340,20 +341,19 @@ class GxConnException extends Exception {
 //-----------------------------------------------------------------------
 
 class GXConnDSNHelper {
-	/** [author     ] Leandro Silva | Grafluxe.com */
 	/** [description] This class is filled with static methods that return DSN strings to use when connecting to a database. */
 	
-	public static function dsn_mysql($db, $host = 'localhost', $port = '') { return "mysql:host=$host;port=$port;dbname=$db"; }
+	public static function dsn_mysql($db, $host = "localhost", $port = "") { return "mysql:host=$host;port=$port;dbname=$db"; }
 	public static function dsn_mysqlSocket($db, $socket) { return "mysql:unix_socket=$socket;dbname=$db"; }
 	public static function dsn_sqlite($db) { return "sqlite:$db"; }
 	public static function dsn_sqliteMemory() { return "sqlite::memory:"; }
 	public static function dsn_sqlite2($db) { return "sqlite2:$db"; }
 	public static function dsn_sqlite2Memory() { return "sqlite2::memory:"; }
-	public static function dsn_mssql($db, $host = 'localhost') { return "mssql:host=$host;dbname=$db"; }
-	public static function dsn_sybase($db, $host = 'localhost') { return "sybase:host=$host;dbname=$db"; }
-	public static function dsn_dblib($db, $host = 'localhost') { return "dblib:host=$host;dbname=$db"; }
-	public static function dsn_pgsql($db, $host = 'localhost', $port = '') { return "pgsql:host=$host;port=$port;dbname=$db"; }
-	public static function dsn_firebird($db, $host = 'localhost') { return "firebird:host=$host;dbname=$db"; }
+	public static function dsn_mssql($db, $host = "localhost") { return "mssql:host=$host;dbname=$db"; }
+	public static function dsn_sybase($db, $host = "localhost") { return "sybase:host=$host;dbname=$db"; }
+	public static function dsn_dblib($db, $host = "localhost") { return "dblib:host=$host;dbname=$db"; }
+	public static function dsn_pgsql($db, $host = "localhost", $port = "") { return "pgsql:host=$host;port=$port;dbname=$db"; }
+	public static function dsn_firebird($db, $host = "localhost") { return "firebird:host=$host;dbname=$db"; }
 	public static function dsn_oci($db) { return "oci:dbname=$db"; }
 	public static function dsn_informix_ini($ini) { return "informix:DSN=$ini"; }
 	public static function dsn_informix($db, $host, $service, $server, $protocol, $enable_scrollable_cursors) { return "informix:host=$host;service=$service;database=$db;server=$server;protocol=$protocol;EnableScrollableCursors=$enable_scrollable_cursors"; }
