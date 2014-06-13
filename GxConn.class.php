@@ -43,11 +43,13 @@ class GxConn {
 		print_r($r2);
 	*/
 					  
-	public $conn;										/** @conn Returns the PDO object. */
-	public $col_whitelist;								/** @col_whitelist A whitelist of columns that can be queried. Expects a array. */
-	public $tbl_whitelist;								/** @tbl_whitelist A whitelist of tables that can be queried. Expects a array. */
+	public $conn;											/** @conn Returns the PDO object. */
+	public $col_whitelist;								/** @col_whitelist A whitelist of columns that can be queried. Use in concert with the col_check method. Expects a array. */
+	public $tbl_whitelist;								/** @tbl_whitelist A whitelist of tables that can be queried. Use in concert with the tbl_check method. Expects a array. */
 	public $get_last_stmt;								/** @get_last_stmt Returns the statement you last queried. */
 	public $blacklist = array("DROP", "DELETE", "--");	/** @blacklist An array of forbidden clause words. Case does not matter. Defaults to array("DROP", "DELETE", "--"); */
+	
+	public static $echoUncaughtErrors = false;
 	
 	private $c;
 	
@@ -68,7 +70,11 @@ class GxConn {
 	}
 	
 	public static function error_handler($e) {
-		echo "[Uncaught GxConn Error]: " . $e->getMessage();
+		if(self::$echoUncaughtErrors) {
+			echo "[Uncaught GxConn Error]: " . $e->getMessage();
+		}else {
+			echo '[Uncaught GxConn Error]: To see uncaught database errors, set GxConn::$echoUncaughtErrors to true.';
+		}
 	}
 	
 	private function blacklist_check($s) {
@@ -124,7 +130,7 @@ class GxConn {
 	}
 	
 	/** @bind_value Use as the bind argument in the query method. Works like PDO's bindValue method.  */
-	public function bind_value($parameter, $value, $data_type) {
+	public function bind_value($parameter, $value, $data_type = NULL) {
 		return array($parameter, $value, $data_type);
 	}
 	
@@ -343,25 +349,25 @@ class GxConnException extends Exception {
 class GXConnDSNHelper {
 	/** [description] This class is filled with static methods that return DSN strings to use when connecting to a database. */
 	
-	public static function dsn_mysql($db, $host = "localhost", $port = "") { return "mysql:host=$host;port=$port;dbname=$db"; }
-	public static function dsn_mysqlSocket($db, $socket) { return "mysql:unix_socket=$socket;dbname=$db"; }
-	public static function dsn_sqlite($db) { return "sqlite:$db"; }
+	public static function dsn_mysql($db = "", $host = "localhost", $port = "") { return "mysql:host=$host;port=$port;dbname=$db"; }
+	public static function dsn_mysqlSocket($db = "", $socket) { return "mysql:unix_socket=$socket;dbname=$db"; }
+	public static function dsn_sqlite($db = "") { return "sqlite:$db"; }
 	public static function dsn_sqliteMemory() { return "sqlite::memory:"; }
-	public static function dsn_sqlite2($db) { return "sqlite2:$db"; }
+	public static function dsn_sqlite2($db = "") { return "sqlite2:$db"; }
 	public static function dsn_sqlite2Memory() { return "sqlite2::memory:"; }
-	public static function dsn_mssql($db, $host = "localhost") { return "mssql:host=$host;dbname=$db"; }
-	public static function dsn_sybase($db, $host = "localhost") { return "sybase:host=$host;dbname=$db"; }
-	public static function dsn_dblib($db, $host = "localhost") { return "dblib:host=$host;dbname=$db"; }
-	public static function dsn_pgsql($db, $host = "localhost", $port = "") { return "pgsql:host=$host;port=$port;dbname=$db"; }
-	public static function dsn_firebird($db, $host = "localhost") { return "firebird:host=$host;dbname=$db"; }
-	public static function dsn_oci($db) { return "oci:dbname=$db"; }
+	public static function dsn_mssql($db = "", $host = "localhost") { return "mssql:host=$host;dbname=$db"; }
+	public static function dsn_sybase($db = "", $host = "localhost") { return "sybase:host=$host;dbname=$db"; }
+	public static function dsn_dblib($db = "", $host = "localhost") { return "dblib:host=$host;dbname=$db"; }
+	public static function dsn_pgsql($db = "", $host = "localhost", $port = "") { return "pgsql:host=$host;port=$port;dbname=$db"; }
+	public static function dsn_firebird($db = "", $host = "localhost") { return "firebird:host=$host;dbname=$db"; }
+	public static function dsn_oci($db = "") { return "oci:dbname=$db"; }
 	public static function dsn_informix_ini($ini) { return "informix:DSN=$ini"; }
-	public static function dsn_informix($db, $host, $service, $server, $protocol, $enable_scrollable_cursors) { return "informix:host=$host;service=$service;database=$db;server=$server;protocol=$protocol;EnableScrollableCursors=$enable_scrollable_cursors"; }
+	public static function dsn_informix($db = "", $host, $service, $server, $protocol, $enable_scrollable_cursors) { return "informix:host=$host;service=$service;database=$db;server=$server;protocol=$protocol;EnableScrollableCursors=$enable_scrollable_cursors"; }
 	public static function dsn_ibm_ini($ini) { return "ibm:DSN=$ini"; }
-	public static function dsn_ibm($db) { return "ibm:DRIVER=$driver;DATABASE=$db;HOSTNAME=$host;PORT=$port;PROTOCOL=$protocol"; }
-	public static function dsn_odbc($db, $driver, $protocol, $host, $port) { return "odbc:$db";	}
-	public static function dsn_odbc_db2($db, $driver, $protocol, $uid, $pw, $host, $port) { return "odbc:DRIVER=$driver;HOSTNAME=$host;PORT=$port;DATABASE=$db;PROTOCOL=$protocol;UID=$uid;PWD=$pw"; }
-	public static function dsn_odbc_access($db, $driver, $uid) { return "odbc:Driver=$driver;Dbq=$db;Uid=$uid"; }
+	public static function dsn_ibm($db = "") { return "ibm:DRIVER=$driver;DATABASE=$db;HOSTNAME=$host;PORT=$port;PROTOCOL=$protocol"; }
+	public static function dsn_odbc($db = "", $driver, $protocol, $host, $port) { return "odbc:$db";	}
+	public static function dsn_odbc_db2($db = "", $driver, $protocol, $uid, $pw, $host, $port) { return "odbc:DRIVER=$driver;HOSTNAME=$host;PORT=$port;DATABASE=$db;PROTOCOL=$protocol;UID=$uid;PWD=$pw"; }
+	public static function dsn_odbc_access($db = "", $driver, $uid) { return "odbc:Driver=$driver;Dbq=$db;Uid=$uid"; }
 	
 }
 
