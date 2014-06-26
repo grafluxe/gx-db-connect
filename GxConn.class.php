@@ -43,7 +43,7 @@ class GxConn {
 		print_r($r2);
 	*/
 					  
-	public $conn;											/** @conn Returns the PDO object. */
+	public $conn;										/** @conn Returns the PDO object. */
 	public $col_whitelist;								/** @col_whitelist A whitelist of columns that can be queried. Use in concert with the col_check method. Expects a array. */
 	public $tbl_whitelist;								/** @tbl_whitelist A whitelist of tables that can be queried. Use in concert with the tbl_check method. Expects a array. */
 	public $get_last_stmt;								/** @get_last_stmt Returns the statement you last queried. */
@@ -83,6 +83,9 @@ class GxConn {
 				if($i > 0) { $regex .= "|"; }			
 				$regex .= $this->blacklist[$i];
 			}
+			
+			//remove extra space
+			$s = preg_replace("/\s+/", " ", $s);
 			
 			//remove all strings in order to test clauses
 			$s = preg_replace("/\".*?\"|'.*?'/", "", $s);
