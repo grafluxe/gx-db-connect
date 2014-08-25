@@ -6,7 +6,6 @@ TODO
 
 - add export to JSON option?
 - update create_html_table()
-	- allow custom queries
 	- add pagination
 	
 */
@@ -49,6 +48,7 @@ class GxConn {
 	public $get_last_stmt;								/** @get_last_stmt Returns the statement you last queried. */
 	public $blacklist = array("DROP", "DELETE", "--");	/** @blacklist An array of forbidden clause words. Case does not matter. Defaults to array("DROP", "DELETE", "--"); */
 	
+	public static $version = "2.0";
 	public static $echoUncaughtErrors = false;
 	
 	private $c;
@@ -261,40 +261,59 @@ class GxConn {
 		}
 	}
 	
-	/** @run_tbl_to_html Echos a table with your database data. */
-	public function run_tbl_to_html($tbl, $start_at_col = 0) {		
+	/** @run_tbl_to_html Echos a table with your data. The stmt param expects your query statement. The paginateAt expects a number and ties to the 'pg' URL query. */
+	public function run_tbl_to_html($stmt, $paginateAt = 0, $defaultStyles = true) {	
+		$this->semicolon_check($stmt);
+		$this->blacklist_check($stmt);	
+			
 		$bg_color = "#CCC";
 		$col_color_odd = "#F9F9F9";
 		$col_color_even = "#F0F0F0";
 		$header_color = "#9C9C9C";
 		$alt_row = true;
-		$len = $this->run_col_count($tbl);
-		$arr = $this->run_col_info($tbl);
 		$col_num = 1;
 		$row_num = 1;
-	
-		for($i = 0; $i < count($arr); $i++) {
-			$col_names[ ] = $arr[$i]["Field"];
+		
+		//
+		if($paginateAt) {
+			$stmt .= " LIMIT $paginateAt OFFSET " . $paginateAt * ($_GET["pg"] - 1);
 		}
 		
-		$q = $this->query("SELECT * FROM {$this->tbl_check($tbl)}", NULL, PDO::FETCH_NUM);
+		//col names
+		$qNames = $this->c->prepare($stmt);
+		$qNames->closeCursor();
+		$qNames->execute();
 		
-		if($start_at_col > $len) { $start_at_col = ($len - 1); }
-		if($start_at_col < 0) { $start_at_col = 0; }
+		$names = $qNames->fetchAll(PDO::FETCH_ASSOC);
 		
-		echo "<table id=\"GxConnTable\" style=\"width:100%; background-color:$bg_color; text-align:center\">";
+		$col_names = array_keys($names[0]);
 		
-		//heads
-		for($i = $start_at_col; $i < $len; $i++) {
+		//main query
+		$q = $this->c->prepare($stmt);
+		$q->closeCursor();
+		$q->execute();
+		
+		$len = $q->columnCount();
+		
+		if($defaultStyles) { $styles = " style=\"width:100%; background-color:$bg_color; text-align:center\""; }
+		
+		$echo = "<table id=\"GxConnTable\"$styles>\n<tr>\n";
+				
+		//heads		
+		for($i = 0; $i < $len; $i++) {
 			$col_num = $i + 1;
 			
-			echo "<td class=\"cols col$col_num colHeaders colHeader$col_num\" style=\"padding:3px 12px; background-color:$header_color;\">$col_names[$i]</td>";
+			if($defaultStyles) { $styles = " style=\"padding:3px 12px; background-color:$header_color\""; }
+			
+			$echo .= "<td class=\"cols col$col_num colHeaders colHeader$col_num\"$styles>$col_names[$i]</td>\n";
 		}
-
-		//data
+		
+		$echo .= "</tr>\n";
+		
+		//data		
 		foreach($q as $row) {
-			for($i = $start_at_col; $i < $len; $i++) {
-				if($i == $start_at_col) {					
+			for($i = 0; $i < $len; $i++) {
+				if($i == 0) {					
 					if($alt_row) {
 						$alt_row = false;
 						$colColor = $col_color_odd;
@@ -306,21 +325,44 @@ class GxConn {
 					}
 				}
 				
-				if(($i % $len) == $start_at_col) { echo "<tr>"; }
+				if(($i % $len) == 0) { $echo .= "<tr>\n"; }
 				
 				$col_num = $i + 1;
 				
-				echo "<td class=\"cols col$col_num $alt_row_class row$row_num\" style=\"padding:3px 12px; background-color:$colColor;\">$row[$i]</td>";
+				if($defaultStyles) { $styles = " style=\"padding:3px 12px; background-color:$colColor;\""; }
+				
+				$echo .= "<td class=\"cols col$col_num $alt_row_class row$row_num\"$styles>$row[$i]</td>\n";
 				
 				if($i == ($len - 1)) { 
-					echo "</tr>";  
+					$echo .= "</tr>\n";  
 					$row_num++;
 				}				
 			}
 		}
 		
-		echo "</table>";
+		$echo .= "</table>";
+		
+		echo $echo;
+		
+		if($paginateAt) {
+			echo "finish here";
+			
+			$this->paginate($_GET["pg"], 10);	
+		}
 	}
+		
+	private function paginate($pg, $totalPgs) {
+		$echo = "<p class=\"GxConnPagination\">" . ($pg > 1 ? "<a href=\"{$_SERVER['PHP_SELF']}?pg=" . ($pg - 1) . "\">&lt;</a> " : "&lt; ");
+		
+		for($p = 1; $p <= $totalPgs; $p++) {
+			$echo .= ($pg == $p ? $p . " " :  "<a href=\"{$_SERVER['PHP_SELF']}?pg=$p\">$p</a> ");	
+		}
+		
+		$echo .= ($pg < $totalPgs ? "<a href=\"{$_SERVER['PHP_SELF']}?pg=" . ($pg + 1) . "\">&gt;</a> " : "&gt; ") . "</p>";
+		
+		echo $echo;
+	}
+	
 	
 	
 }
