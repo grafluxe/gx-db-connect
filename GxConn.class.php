@@ -1,19 +1,10 @@
 <?php
 /*	Copyright (c) 2012 Leandro Silva | grafluxe.com/license */
 
-/*
-TODO
-
-- add export to JSON option?
-- update create_html_table()
-	- add pagination
-	
-*/
-
 class GxConn {
 	/** [author     ] Leandro Silva | Grafluxe.com */
-	/** [description] Execute commands on a database using PHP Data Objects. Many security features added. Supports multiple database drivers. For security, semi-colons are not allowed in
-					  in your statements and are dynamically added pre-execution. Note that methods prepended with "run_" execute sepecifc statements; use the query method for custom queries. */
+	/** [description] Execute commands on a database using PHP Data Objects. Many security features added. Supports multiple database drivers. Note that methods prepended 
+					  with "run_" execute specific statements; use the query method for custom queries. */
 	/** [example	] 
 		$gxConn = new GXConn("mysql:host=localhost;dbname=tester;charset=utf8");
 			
@@ -73,7 +64,7 @@ class GxConn {
 		if(self::$echoUncaughtErrors) {
 			echo "[Uncaught GxConn Error]: " . $e->getMessage();
 		}else {
-			echo '[Uncaught GxConn Error]: To see uncaught database errors, set GxConn::$echoUncaughtErrors to true.';
+			echo "[Uncaught GxConn Error]: To see uncaught errors, set the static 'echoUncaughtErrors' variable to true.";
 		}
 	}
 	
@@ -261,8 +252,47 @@ class GxConn {
 		}
 	}
 	
-	/** @run_tbl_to_html Echos a table with your data. The stmt param expects your query statement. The paginateAt expects a number and ties to the 'pg' URL query. */
-	public function run_tbl_to_html($stmt, $paginateAt = 0, $defaultStyles = true) {	
+	/** @run_export Exports your table as a JSON formatted file. */
+	public function run_export($tbl, $pretty_print = false) {
+		$file_name = date("m-d-y") . "-" . $tbl . ".json";
+				
+		$obj["GxConn"] = self::$version;
+		$obj["table"] = $tbl;
+		$obj["colCount"] = $this->run_col_count($tbl);
+		$obj["rowCount"] = $this->run_row_total($tbl);
+		
+		//cols
+		$desc = $this->query("DESCRIBE $tbl");
+		$keys = array_keys($desc[0]);
+		
+		for($i = 0, $len = count($desc); $i < $len; $i++) {
+			for($k = 0, $lenK = count($keys); $k < $lenK; $k++) {
+				$cols[$i][$keys[$k]] = isset($desc[$i][$keys[$k]]) ? utf8_encode($desc[$i][$keys[$k]]) : "";
+			}
+		}
+		
+		$obj["cols"] = $cols;
+		
+		//rows
+		for($j = 0, $lenJ = $obj["rowCount"]; $j < $lenJ; $j++) {
+			$rows[] = array_map("utf8_encode", $this->run_row_data($j, $tbl));
+		}
+				
+		$obj["rows"] = $rows;
+		
+		//
+		$json = json_encode($obj, ($pretty_print ? JSON_PRETTY_PRINT : 0));
+			
+		if(json_last_error() != JSON_ERROR_NONE) {
+			die("There was a problem creating your JSON export: " . json_last_error_msg());
+		}
+		
+		return file_put_contents($file_name, $json) > 0;
+	}
+	
+	/** @run_tbl_to_html Echos an HTML table with your data. The stmt param expects your query statement. The paginateAt expects a number and ties to 
+						 the 'pg' URL query. */
+	public function run_tbl_to_html($stmt, $paginateAt = 0, $pgQueryName = "pg", $defaultStyles = true) {	
 		$this->semicolon_check($stmt);
 		$this->blacklist_check($stmt);	
 			
@@ -271,41 +301,48 @@ class GxConn {
 		$col_color_even = "#F0F0F0";
 		$header_color = "#9C9C9C";
 		$alt_row = true;
-		$col_num = 1;
 		$row_num = 1;
 		
-		//
-		if($paginateAt) {
-			$stmt .= " LIMIT $paginateAt OFFSET " . $paginateAt * ($_GET["pg"] - 1);
-		}
-		
 		//col names
-		$qNames = $this->c->prepare($stmt);
+		$qNames = $this->c->prepare($stmt . ";");
 		$qNames->closeCursor();
 		$qNames->execute();
 		
-		$names = $qNames->fetchAll(PDO::FETCH_ASSOC);
-		
+		$names = $qNames->fetchAll(PDO::FETCH_ASSOC);		
 		$col_names = array_keys($names[0]);
 		
 		//main query
-		$q = $this->c->prepare($stmt);
+		if($paginateAt) {
+			if(stristr($stmt, "LIMIT") || stristr($stmt, "OFFSET")) {
+				throw new GXConnException("Your 'run_tbl_to_html' statement cannot have a LIMIT or OFFSET clause.", 5);
+			}
+			
+			$totalPgs = ceil($qNames->rowCount() / $paginateAt);
+			$pgQuery = isset($_GET[$pgQueryName]) ? $_GET[$pgQueryName] : 1;
+			
+			if($pgQuery > $totalPgs) { $pgQuery = $totalPgs; 	}
+			
+			$stmt .= " LIMIT $paginateAt OFFSET " . $paginateAt * ($pgQuery - 1);
+		}
+		
+		$q = $this->c->prepare($stmt . ";");
 		$q->closeCursor();
 		$q->execute();
 		
 		$len = $q->columnCount();
 		
-		if($defaultStyles) { $styles = " style=\"width:100%; background-color:$bg_color; text-align:center\""; }
+		if($defaultStyles) { 
+			$styles = " style=\"width:100%; background-color:$bg_color; text-align:center\""; 
+			$styles2 = " style=\"padding:3px 12px; background-color:$header_color\"";
+		}
 		
-		$echo = "<table id=\"GxConnTable\"$styles>\n<tr>\n";
+		$echo = "<table class=\"GxConnTable\"$styles>\n<tr class=\"headerRow\"$styles2>\n";
 				
 		//heads		
 		for($i = 0; $i < $len; $i++) {
 			$col_num = $i + 1;
-			
-			if($defaultStyles) { $styles = " style=\"padding:3px 12px; background-color:$header_color\""; }
-			
-			$echo .= "<td class=\"cols col$col_num colHeaders colHeader$col_num\"$styles>$col_names[$i]</td>\n";
+						
+			$echo .= "<td class=\"col$col_num\">$col_names[$i]</td>\n";
 		}
 		
 		$echo .= "</tr>\n";
@@ -325,13 +362,13 @@ class GxConn {
 					}
 				}
 				
-				if(($i % $len) == 0) { $echo .= "<tr>\n"; }
-				
-				$col_num = $i + 1;
-				
 				if($defaultStyles) { $styles = " style=\"padding:3px 12px; background-color:$colColor;\""; }
 				
-				$echo .= "<td class=\"cols col$col_num $alt_row_class row$row_num\"$styles>$row[$i]</td>\n";
+				if(($i % $len) == 0) { $echo .= "<tr class=\"row$row_num $alt_row_class\"$styles>\n"; }
+				
+				$col_num = $i + 1;
+								
+				$echo .= "<td class=\"col$col_num\">$row[$i]</td>\n";
 				
 				if($i == ($len - 1)) { 
 					$echo .= "</tr>\n";  
@@ -345,25 +382,38 @@ class GxConn {
 		echo $echo;
 		
 		if($paginateAt) {
-			echo "finish here";
-			
-			$this->paginate($_GET["pg"], 10);	
+			if($totalPgs > 1) { 
+				$this->paginate($pgQuery, $pgQueryName, $totalPgs);
+			}
 		}
 	}
 		
-	private function paginate($pg, $totalPgs) {
-		$echo = "<p class=\"GxConnPagination\">" . ($pg > 1 ? "<a href=\"{$_SERVER['PHP_SELF']}?pg=" . ($pg - 1) . "\">&lt;</a> " : "&lt; ");
+	private function paginate($pg, $pgQueryName, $totalPgs) {		
+		$echo = "\n<p class=\"GxConnPagination\">\n" . ($pg > 1 ? "<a href=\"" . $this->updateQueryStr($pgQueryName, $pg - 1) . "\">&lt;</a> " : "&lt; ") . "\n";
 		
-		for($p = 1; $p <= $totalPgs; $p++) {
-			$echo .= ($pg == $p ? $p . " " :  "<a href=\"{$_SERVER['PHP_SELF']}?pg=$p\">$p</a> ");	
+		for($i = 1; $i <= $totalPgs; $i++) {
+			$echo .= ($pg == $i ? $i . " " :  "<a href=\"" . $this->updateQueryStr($pgQueryName, $i) . "\">$i</a>") . "\n";	
 		}
 		
-		$echo .= ($pg < $totalPgs ? "<a href=\"{$_SERVER['PHP_SELF']}?pg=" . ($pg + 1) . "\">&gt;</a> " : "&gt; ") . "</p>";
-		
+		$echo .= ($pg < $totalPgs ? "<a href=\"" . $this->updateQueryStr($pgQueryName, $pg + 1) . "\">&gt;</a> " : "&gt;") . "\n</p>\n";
+				
 		echo $echo;
 	}
 	
-	
+	private function updateQueryStr($pgQueryName, $pg) {
+		if(! strstr($_SERVER['QUERY_STRING'], $pgQueryName . "=")) {
+			if(strpos($_SERVER['REQUEST_URI'], "?")) {
+				$div = "&";	
+			}else {
+				$div = "?";
+			}
+						
+			return $_SERVER['REQUEST_URI'] . $div . "$pgQueryName=$pg";
+		}else {
+			return preg_replace("/" . preg_quote($pgQueryName) . "=\d*/", $pgQueryName . "=" . $pg, $_SERVER['REQUEST_URI']);
+		}
+	}
+
 	
 }
 
