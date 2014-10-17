@@ -39,7 +39,7 @@ class GxConn {
 	public $get_last_stmt;								/** @get_last_stmt Returns the statement you last queried. */
 	public $blacklist = array("DROP", "DELETE", "--");	/** @blacklist An array of forbidden clause words. Case does not matter. Defaults to array("DROP", "DELETE", "--"); */
 	
-	public static $version = "2.0";
+	public static $version = "2.1";
 	public static $echoUncaughtErrors = false;
 	
 	private $c;
@@ -156,6 +156,12 @@ class GxConn {
 		}catch(PDOException $e) { 
 			return NULL;
 		}
+	}
+	
+	/** @close Closes the database connection. */
+	public function close() {
+		$this->conn = NULL;
+		$this->c = NULL;
 	}
 		 
 	 /** @run_tbl_exists Returns a boolean determining whether a table exists. */
