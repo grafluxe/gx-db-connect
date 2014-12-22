@@ -129,7 +129,7 @@ class GxConn {
 	}
 	
 	/** @query The main method used to run queries. The stmt param expects a string with your query statement (use col_check and tbl_check with the whitelists for
-			   add security against SQL injecion). The bind param expects an array filled with the bind_value methods. The fetch_how param expects directions on how
+			   added security against SQL injecion). The bind param expects an array filled with the bind_value methods. The fetch_how param expects directions on how
 			   to return the results and is defaulted to PDO::FETCH_ASSOC. */
 	public function query($stmt, array $bind = NULL, $fetch_how = PDO::FETCH_ASSOC) {	
 		$this->semicolon_check($stmt);
