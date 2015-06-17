@@ -33,13 +33,13 @@ class GxConn {
 		print_r($r2);
 	*/
 					  
-	public $conn;										/** @conn Returns the PDO object. */
-	public $col_whitelist;								/** @col_whitelist A whitelist of columns that can be queried. Use in concert with the col_check method. Expects a array. */
-	public $tbl_whitelist;								/** @tbl_whitelist A whitelist of tables that can be queried. Use in concert with the tbl_check method. Expects a array. */
-	public $get_last_stmt;								/** @get_last_stmt Returns the statement you last queried. */
-	public $blacklist = array("DROP", "DELETE", "--");	/** @blacklist An array of forbidden clause words. Case does not matter. Defaults to array("DROP", "DELETE", "--"); */
+	public $conn;													/** @conn Returns the PDO object. */
+	public $col_whitelist;											/** @col_whitelist A whitelist of columns that can be queried. Use in concert with the col_check method. Expects a array. */
+	public $tbl_whitelist;											/** @tbl_whitelist A whitelist of tables that can be queried. Use in concert with the tbl_check method. Expects a array. */
+	public $get_last_stmt;											/** @get_last_stmt Returns the statement you last queried. */
+	public $blacklist = array("DROP", "DELETE", "--", "/*", "xp_");	/** @blacklist An array of forbidden clause words. Case does not matter. Defaults to array("DROP", "DELETE", "--", "/*", "xp_"); */
 	
-	public static $version = "2.1";
+	public static $version = "2.2.0";
 	public static $echoUncaughtErrors = false;
 	
 	private $c;
@@ -167,7 +167,7 @@ class GxConn {
 	 /** @run_tbl_exists Returns a boolean determining whether a table exists. */
 	public function run_tbl_exists($tbl) {
 		try {
-			$q = $this->c->prepare("SELECT 1 FROM {$this->tbl_check($tbl)};");
+			$q = $this->c->prepare("SELECT 1 FROM {$this->tbl_check($tbl)} LIMIT 1;");
 			$this->get_last_stmt = $q->queryString;
 			$q->closeCursor();
 			$q->execute();
@@ -180,7 +180,7 @@ class GxConn {
 	
 	/** @run_col_count Returns the total column count. */
 	public function run_col_count($tbl) {
-		$q = $this->c->prepare("SELECT * FROM {$this->tbl_check($tbl)};");
+		$q = $this->c->prepare("SELECT * FROM {$this->tbl_check($tbl)} LIMIT 1;");
 		$this->get_last_stmt = $q->queryString;
 
 		$q->closeCursor();
@@ -217,7 +217,7 @@ class GxConn {
 	/** @run_col_exists Returns a boolean determining whether a column exists. */
 	public function run_col_exists($col, $tbl) {
 		try {
-			$q = $this->c->prepare("SELECT {$this->col_check($col)} FROM {$this->tbl_check($tbl)};");
+			$q = $this->c->prepare("SELECT {$this->col_check($col)} FROM {$this->tbl_check($tbl)} LIMIT 1;");
 			$this->get_last_stmt = $q->queryString;
 			$q->closeCursor();
 			$q->execute();
@@ -230,13 +230,13 @@ class GxConn {
 	
 	/** @run_row_total Returns the total row count. */
 	public function run_row_total($tbl) {		
-		$q = $this->c->prepare("SELECT * FROM {$this->tbl_check($tbl)};");
+		$q = $this->c->prepare("SELECT COUNT(*) FROM {$this->tbl_check($tbl)};");
 		$this->get_last_stmt = $q->queryString;
 		
 		$q->closeCursor();
 		$q->execute();
 		
-		return $q->rowCount();
+		return $q->fetchColumn();
 	}
 	
 	/** @run_row_data Returns an array of the data in the specified row. Returns null if the specified row is greater than the total number of rows. */
