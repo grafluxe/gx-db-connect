@@ -258,8 +258,8 @@ class GxConn {
 		}
 	}
 	
-	/** @run_export Exports your table as a JSON formatted file. */
-	public function run_export($tbl, $pretty_print = false) {
+	/** @run_export Exports your table as a JSON formatted file. The optional $pretty_print argument is only valid on PHP versions >=5.4.0 The optional $relative_dir argument expects a path relative to this file. */
+	public function run_export($tbl, $pretty_print = false, $relative_dir = "") {
 		$file_name = date("m-d-y") . "-" . $tbl . ".json";
 				
 		$obj["GxConn"] = self::$version;
@@ -280,20 +280,28 @@ class GxConn {
 		$obj["cols"] = $cols;
 		
 		//rows
-		for($j = 0, $lenJ = $obj["rowCount"]; $j < $lenJ; $j++) {
-			$rows[] = array_map("utf8_encode", $this->run_row_data($j, $tbl));
-		}
-				
-		$obj["rows"] = $rows;
+		$q = $this->c->prepare("SELECT * FROM $tbl;");		
+		$q->closeCursor();
+		$q->execute();
+		
+		$obj["rows"] = $q->fetchAll(PDO::FETCH_NUM);
 		
 		//
-		$json = json_encode($obj, ($pretty_print ? JSON_PRETTY_PRINT : 0));
+		$json = json_encode($obj, ($pretty_print && defined(JSON_PRETTY_PRINT) ? JSON_PRETTY_PRINT : 0));
 			
 		if(json_last_error() != JSON_ERROR_NONE) {
 			die("There was a problem creating your JSON export: " . json_last_error_msg());
 		}
 		
-		return file_put_contents($file_name, $json) > 0;
+		if ($relative_dir) {
+			$relative_dir = trim($relative_dir, "/") . "/";
+			
+			if (!is_dir($relative_dir)) {
+				mkdir($relative_dir);
+			}
+		}
+		
+		return file_put_contents($relative_dir . $file_name, $json) > 0;
 	}
 	
 	/** @run_tbl_to_html Echos an HTML table with your data. The stmt param expects your query statement. The paginateAt expects a number and ties to 
