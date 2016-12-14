@@ -1,6 +1,7 @@
 <?php
 /**
  * @author Leandro Silva | Grafluxe, 2012
+ * @license MIT
  */
 
 /**
