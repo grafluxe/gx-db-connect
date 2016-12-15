@@ -14,18 +14,19 @@ To help prevent SQL injection, the following security measures are included:
       - "--" = Helps to project against comment attacks.
       - "/*" =  Helps to project against comment attacks.
       - "xp_" = Helps to prevent calls to SQL Server extended stored procedures.
-- Semicolons are not allowed so to protect against new statement injections.
-- Errors are caught and filtered though the GxConnException class.
-- Echoing is off by default to prevents leaking data through errors.
-- All queries are prepared and executed (with support for value binding).
+      - ";" = Helps to prevent new statement injections.
+- Errors are caught and filtered through the GxConnException class.
+  - Prevents leaking internal logic, which can happen when using standard PHP exception classes.
+- By default, uncaught error echoing is silenced so to prevent leaking data through uncaught errors messages.
+- All queries are "prepared" before being executed (with support for value binding).
 
 ## Classes
 
 - GxConn
   - The main class you will use.
-- GxConnException
-  - Extends the PHP Exception class to add custom exceptions.
-- GXConnDSNHelper
+- GxConnException (nested in GxConn)
+  - Extends the PHP Exception class to add a custom message format.
+- GxConnDSNHelper
   - DSN helper. This class is filled with static methods that return DSN strings. Use it to simplify the database connection process.
 
 ## Public Members
@@ -33,19 +34,21 @@ To help prevent SQL injection, the following security measures are included:
 ### Properties
 
 - **$conn** = The PDO object.
-- **$col_whitelist** = A whitelist of columns that can be queried. Use in concert with the col_check method.
-- **$tbl_whitelist** = A whitelist of tables that can be queried. Use in concert with the tbl_check method.
+- **$col_whitelist** = A whitelist of columns that can be queried. Use in concert with the 'col_check' method.
+- **$tbl_whitelist** = A whitelist of tables that can be queried. Use in concert with the 'tbl_check' method.
 - **$get_last_stmt** = The statement you last queried.
-- **$blacklist** = An array of forbidden clause words. Letter case does not matter.
-- **$version** (static) = The version.
+- **$version** (static) = The release version.
 - **$echoUncaughtErrors** (static) = Set to true to output uncaught errors. Defaults to false for better security.
 
 ### Methods
 
+- **blacklist_add(...)** = Adds a value to your blacklist filter. Before any query is run, your statement will be checked for any blacklisted string. If a blacklisted string is found, the query will not be executed and a GxConnException exception will be thrown.
+- **blacklist_remove(...)** = Removes a value from your blacklist filter.
+- **blacklist_list()** = Returns your blacklist filters.
 - **select_db()** = Selects a database.
 - **col_check(...)** = Checks if a column in allowed to be used (via the column whitelist).
 - **tbl_check(...)** = Checks if a table in allowed to be used (via the table whitelist).
-- **bind_value(...)** = To be used as the bind argument in the 'query' method. Works like PDO's bindValue method.
+- **bind_value(...)** = To be used as the bind argument in the 'query' method. Works like PDO's 'bindValue' method.
 - **query(...)** = Runs an SQL query. This is the primary method used to run queries.
 - **close()** = Closes the database connection.
 - **run_tbl_exists(...)** = Returns a boolean determining whether a table exists.
@@ -60,56 +63,66 @@ To help prevent SQL injection, the following security measures are included:
 
 For detailed documentation, see inline code in the source file.
 
-## Sample
+## Samples
 
-This first sample includes tight security.
+This sample includes tight security.
 
-Use value binding, a whitelist, and checker methods if you plan to construct your SQL statements with values coming from a form (or other user inputted method). Using these featured will help to prevent SQL injection.
+Use value binding, a whitelist, and checker methods if you plan to construct your SQL statements with values coming from a form (or other user inputted method). Using these featured will help to prevent SQL attacks.
 
 ```
-$conn = new GXConn(GXConnDSNHelper::dsn_mysql("my_database"), "my_username", "my_pass");
+  include "./GxConn.class.php";
+  include "./GxConnDSNHelper.class.php";
 
-$conn->col_whitelist = array("first", "last");
-$conn->tbl_whitelist = array("names_table");
+  try {
+    $conn = new GxConn(GxConnDSNHelper::dsn_mysql("my_database"), "my_username", "my_pass");
 
-$f_name = $_GET["first_name"];
-$l_name = $_GET["last_name"];
-$table = $_GET["table_name"];
+    $conn->col_whitelist = array("first", "last");
+    $conn->tbl_whitelist = array("names_table");
 
-$data = $conn->query("
-  SELECT {$conn->col_check($f_name)}
-  FROM {$conn->tbl_check($table)}
-  WHERE {$conn->col_check($l_name)} = :ln
-  ",
-  array(
-    $conn->bind_value(":ln", "Doe")
-  ),
-  PDO::FETCH_NUM
-);
+    $f_name = $_GET["first_name"];
+    $l_name = $_GET["last_name"];
+    $table = $_GET["table_name"];
 
-print_r($data);
+    $data = $conn->query("
+      SELECT {$conn->col_check($f_name)}
+      FROM {$conn->tbl_check($table)}
+      WHERE {$conn->col_check($l_name)} = :ln
+      ",
+      array(
+        $conn->bind_value(":ln", "Doe")
+      ),
+      PDO::FETCH_NUM
+    );
+
+    print_r($data);
+  } catch(GxConnException $e) {
+    exit($e);
+  }
 ```
 
 This sample includes a more simple use case.
 
 ```
-$conn = new GXConn(GXConnDSNHelper::dsn_mysql("my_database"), "my_username", "my_pass");
+  include "./GxConn.class.php";
 
-try {
-  $data = $conn->query("
-    SELECT first
-    FROM names_table
-  ");
-} catch(GxConnException $e) {
-  echo "error - " . $e;
-}
+  try {
+    $conn = new GxConn("mysql:host=localhost;port=;dbname=my_database", "my_username", "my_pass");
 
-print_r($data);
+    $data = $conn->query("
+      SELECT first
+      FROM names_table
+      WHERE last = 'Doe'
+    ");
+
+    print_r($data);
+  } catch(GxConnException $e) {
+    exit($e);
+  }
 ```
 
 ## License
 
-Copyright (c) 2012 Leandro Silva (http://grafluxe.com)
+Copyright (c) 2012-2016 Leandro Silva (http://grafluxe.com)
 
 Released under the MIT License.
 

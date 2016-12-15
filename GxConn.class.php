@@ -1,112 +1,140 @@
 <?php
 /**
- * @author Leandro Silva | Grafluxe, 2012
+ * @author Leandro Silva | Grafluxe, 2012-2016
  * @license MIT
  */
 
 /**
  * Execute commands on a database using PHP Data Objects. Many security features added.
- * Supports multiple database drivers. Note that methods prepended with "run_" execute
- * specific statements; use the query method for custom queries.
+ * Supports multiple database drivers. Note that methods prepended with 'run_' execute
+ * specific statements; use the 'query' method for custom queries.
  *
- * Sample:
+ * Samples:
+ * This sample includes tight security.
+ *
+ * Use value binding, a whitelist, and checker methods if you plan to construct your SQL statements with values coming from a form (or other user inputted method). Using these featured will help to prevent SQL attacks.
+ *
  * <pre>
- *   $conn = new GXConn(GXConnDSNHelper::dsn_mysql("my_database"), "my_username", "my_pass");
- *
- *   $conn->col_whitelist = array("first", "last");
- *   $conn->tbl_whitelist = array("names_table");
- *
- *   $f_name = $_GET["first_name"];
- *   $l_name = $_GET["last_name"];
- *   $table = $_GET["table_name"];
- *
- *   $data = $conn->query("
- *     SELECT {$conn->col_check($f_name)}
- *     FROM {$conn->tbl_check($table)}
- *     WHERE {$conn->col_check($l_name)} = :ln
- *     ",
- *     array(
- *       $conn->bind_value(":ln", "Doe")
- *     ),
- *     PDO::FETCH_NUM
- *   );
- *
- *   print_r($data);
+ *   include "./GxConn.class.php";
+ *   include "./GxConnDSNHelper.class.php";
  *
  *   try {
- *     $data2 = $conn->query("
+ *     $conn = new GxConn(GxConnDSNHelper::dsn_mysql("my_database"), "my_username", "my_pass");
+ *
+ *     $conn->col_whitelist = array("first", "last");
+ *     $conn->tbl_whitelist = array("names_table");
+ *
+ *     $f_name = $_GET["first_name"];
+ *     $l_name = $_GET["last_name"];
+ *     $table = $_GET["table_name"];
+ *
+ *     $data = $conn->query("
+ *       SELECT {$conn->col_check($f_name)}
+ *       FROM {$conn->tbl_check($table)}
+ *       WHERE {$conn->col_check($l_name)} = :ln
+ *       ",
+ *       array(
+ *         $conn->bind_value(":ln", "Doe")
+ *       ),
+ *       PDO::FETCH_NUM
+ *     );
+ *
+ *     print_r($data);
+ *   } catch(GxConnException $e) {
+ *     exit($e);
+ *   }
+ * </pre>
+ *
+ * This sample includes a more simple use case.
+ *
+ * <pre>
+ *   include "./GxConn.class.php";
+ *
+ *   try {
+ *     $conn = new GxConn("mysql:host=localhost;port=;dbname=my_database", "my_username", "my_pass");
+ *
+ *     $data = $conn->query("
  *       SELECT first
  *       FROM names_table
+ *       WHERE last = 'Doe'
  *     ");
- *   } catch(GxConnException $e) {
- *     echo "error - " . $e;
- *   }
  *
- *   print_r($data2);
+ *     print_r($data);
+ *   } catch(GxConnException $e) {
+ *     exit($e);
+ *   }
  * </pre>
+ *
  */
 class GxConn {
   /** @var object The PDO object. */
   public $conn;
 
-  /** @var array A whitelist of columns that can be queried. Use in concert with the col_check method. */
+  /** @var array A whitelist of columns that can be queried. Use in concert with the 'col_check' method. */
   public $col_whitelist;
 
-  /** @var array A whitelist of tables that can be queried. Use in concert with the tbl_check method. */
+  /** @var array A whitelist of tables that can be queried. Use in concert with the 'tbl_check' method. */
   public $tbl_whitelist;
 
   /** @var string The statement you last queried. */
   public $get_last_stmt;
 
-  /** @var array An array of forbidden clause words. Letter case does not matter. */
-  public $blacklist = array("DROP", "DELETE", "--", "/*", "xp_");
-
-  /** @var string The version. */
-  public static $version = "2.2.0";
+  /** @var string The release version. */
+  public static $version = "3.0.0";
 
   /** @var string Set to true to output uncaught errors. Defaults to false for better security. */
   public static $echoUncaughtErrors = false;
 
-  private $c;
+  private $blacklist = array("DROP", "DELETE", "--", "/*", "xp_", ";");
 
-  /**
-   * Constructor.
+ /**
+   * Constructor. By default, the PDO attribute ATTR_EMULATE_PREPARES is set to false and ATTR_ERRMODE is set to ERRMODE_EXCEPTION.
    * @param string $dsn            The DSN string. You can use the GxConnHelper class to help setup this param.
    * @param string [$usr = "root"] The username.
    * @param string [$pw = "root"]  The password.
-   * @param array  [$opts = NULL]  By default, ATTR_EMULATE_PREPARES is set to false and ATTR_ERRMODE is set to ERRMODE_EXCEPTION.
+   * @param array  [$opts = NULL]  Connection options.
+   * @throws GxConnException
+   * @return object The PDO object.
    */
   public function __construct($dsn, $usr = "root", $pw = "root", array $opts = NULL) {
-    set_exception_handler(array(
-      $this,
-      "error_handler"
-    ));
+    set_exception_handler(array($this, "on_uncaught_exception"));
+    set_error_handler(array($this, "on_uncaught_error"));
 
     try {
-      $this->c = new PDO($dsn, $usr, $pw, $opts);
-    }
-    catch (PDOException $e) {
+      $this->conn = new PDO($dsn, $usr, $pw, $opts);
+    } catch (PDOException $e) {
       throw new GxConnException($e->getMessage(), 1);
     }
 
-    $this->c->setAttribute(PDO::ATTR_EMULATE_PREPARES, false);
-    $this->c->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
-
-    $this->conn = $this->c;
+    $this->conn->setAttribute(PDO::ATTR_EMULATE_PREPARES, false);
+    $this->conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
   }
 
   /**
     * @ignore
     */
-  public static function error_handler($e) {
+  public static function on_uncaught_exception($e) {
     if (self::$echoUncaughtErrors) {
-      echo "[Uncaught GxConn Error]: " . $e->getMessage();
+      exit("[Uncaught GxConn Error]: " . $e->getMessage());
     } else {
-      echo "[Uncaught GxConn Error]: To see uncaught errors, set 'GXConn::\$echoUncaughtErrors' to true.";
+      exit("[Uncaught GxConn Error]: To see uncaught errors, set 'GxConn::\$echoUncaughtErrors' to true.");
+    }
+  }
+
+  /**
+    * @ignore
+    */
+  public static function on_uncaught_error($err_num, $err_msg) {
+    if (self::$echoUncaughtErrors) {
+      exit("[Uncaught GxConn Error]: " . $err_msg);
+    } else {
+      exit("[Uncaught GxConn Error]: To see uncaught errors, set 'GxConn::\$echoUncaughtErrors' to true.");
     }
   }
 
   private function blacklist_check($s) {
+    $regex = "";
+
     if (isset($this->blacklist) && count($this->blacklist) > 0) {
       for ($i = 0; $i < count($this->blacklist); $i++) {
         if ($i > 0) {
@@ -124,18 +152,45 @@ class GxConn {
       $s = preg_replace("/\".*?\"|'.*?'/", "", $s);
 
       if (preg_match("/$regex/i", $s)) {
-        throw new GXConnException("Your query statement contains a blacklisted clause.", 3, NULL);
+        throw new GxConnException("Your query statement contains a blacklisted value. See blacklist_list, index " . ($i - 1) . ".", 2);
       }
     }
   }
 
-  private function semicolon_check($s) {
-    //remove all strings in order to test clauses
-    $s = preg_replace("/\".*?\"|'.*?'/", "", $s);
+  /**
+   * Adds a value to your blacklist filter. Before any query is run, your statement will be checked for
+   * any blacklisted strings. If a blacklisted string is found, the query will not be executed and a
+   * GxConnException exception will be thrown. By default, the blacklist filter contains the following:
+   * ["DROP", "DELETE", "--", "/*", "xp_", ";"]
+   * @param string $str A string to blacklist. Letter case does not matter.
+   */
+  public function blacklist_add($str) {
+    $str = (string) $str;
+    $at = array_search($str, $this->blacklist);
 
-    if (preg_match("/;/", $s)) {
-      throw new GXConnException("Your query statement cannot contain a semi-colon.", 4);
+    if(!$at){
+      array_push($this->blacklist, $str);
     }
+  }
+
+  /**
+   * Removes a value from your blacklist filter.
+   * @param string $str The word to remove from the your blacklist. Letter case does not matter.
+   */
+  public function blacklist_remove($str) {
+    $at = array_search(strtolower((string) $str), array_map("strtolower", $this->blacklist));
+
+    if($at !== false){
+      array_splice($this->blacklist, $at, 1);
+    }
+  }
+
+  /**
+   * Returns your blacklist filters.
+   * @return array The current blacklisted strings.
+   */
+  public function blacklist_list() {
+    return $this->blacklist;
   }
 
   /**
@@ -149,12 +204,13 @@ class GxConn {
   /**
    * Checks if a column in allowed to be used (via the column whitelist).
    * @param  string $col The column name.
+   * @throws GxConnException
    * @return string The column name.
    */
   public function col_check($col) {
     if (isset($this->col_whitelist)) {
       if (!(array_search($col, $this->col_whitelist, true) !== false)) {
-        throw new GXConnException("You do not have permission to query one of the columns in your statement.", 1);
+        throw new GxConnException("You do not have permission to query one of the columns in your statement.", 3);
       }
     }
 
@@ -164,12 +220,13 @@ class GxConn {
   /**
    * Checks if a table in allowed to be used (via the table whitelist).
    * @param  string $tbl The table to query.
+   * @throws GxConnException
    * @return string The table name.
    */
   public function tbl_check($tbl) {
     if (isset($this->tbl_whitelist)) {
       if (!(array_search($tbl, $this->tbl_whitelist, true) !== false)) {
-        throw new GXConnException("You do not have permission to query one of the tables in your statement.", 2);
+        throw new GxConnException("You do not have permission to query one of the tables in your statement.", 4);
       }
     }
 
@@ -177,7 +234,7 @@ class GxConn {
   }
 
   /**
-   * To be used as the bind argument in the 'query' method. Works like PDO's bindValue method.
+   * To be used as the bind argument in the 'query' method. Works like PDO's 'bindValue' method.
    * @param  mixed $parameter            The parameter identifier.
    * @param  mixed $value                The value to bind.
    * @param  integer [$data_type = NULL] The data type.
@@ -196,33 +253,32 @@ class GxConn {
    * @param  string $stmt                             Your query statement (use 'col_check' and 'tbl_check' with the whitelists for added security against SQL injecion)
    * @param  array    [$bind = NULL]                  An array filled with the 'bind_value' methods.
    * @param  integer   [$fetch_how = PDO::FETCH_ASSOC] How to return the results.
-   * @return array|null Query results.
+   * @throws GxConnException
+   * @return array Query results.
    */
   public function query($stmt, array $bind = NULL, $fetch_how = PDO::FETCH_ASSOC) {
-    $this->semicolon_check($stmt);
     $this->blacklist_check($stmt);
 
-    $q = $this->c->prepare($stmt . ";");
-    $this->get_last_stmt = $q->queryString;
+    try {
+      $q = $this->conn->prepare($stmt . ";");
+      $this->get_last_stmt = $q->queryString;
 
-    if (isset($bind)) {
-      for ($i = 0; $i < count($bind); $i++) {
-        if ($bind[$i][2]) {
-          $q->bindValue($bind[$i][0], $bind[$i][1], $bind[$i][2]);
-        } else {
-          $q->bindValue($bind[$i][0], $bind[$i][1]);
+      if (isset($bind)) {
+        for ($i = 0; $i < count($bind); $i++) {
+          if ($bind[$i][2]) {
+            $q->bindValue($bind[$i][0], $bind[$i][1], $bind[$i][2]);
+          } else {
+            $q->bindValue($bind[$i][0], $bind[$i][1]);
+          }
         }
       }
-    }
 
-    $q->closeCursor();
-    $q->execute();
+      $q->closeCursor();
+      $q->execute();
 
-    try {
       return $q->fetchAll($fetch_how);
-    }
-    catch (PDOException $e) {
-      return NULL;
+    } catch (PDOException $e) {
+      throw new GxConnException($e->getMessage(), 5);
     }
   }
 
@@ -230,8 +286,7 @@ class GxConn {
    * Closes the database connection.
    */
   public function close() {
-    $this->conn = NULL;
-    $this->c = NULL;
+    $this->conn = null;
   }
 
   /**
@@ -241,14 +296,13 @@ class GxConn {
    */
   public function run_tbl_exists($tbl) {
     try {
-      $q = $this->c->prepare("SELECT 1 FROM {$this->tbl_check($tbl)} LIMIT 1;");
+      $q = $this->conn->prepare("SELECT 1 FROM {$this->tbl_check($tbl)} LIMIT 1;");
       $this->get_last_stmt = $q->queryString;
       $q->closeCursor();
       $q->execute();
 
       return true;
-    }
-    catch (PDOException $e) {
+    } catch (PDOException $e) {
       return false;
     }
   }
@@ -259,7 +313,7 @@ class GxConn {
    * @return integer The number of columns.
    */
   public function run_col_count($tbl) {
-    $q = $this->c->prepare("SELECT * FROM {$this->tbl_check($tbl)} LIMIT 1;");
+    $q = $this->conn->prepare("SELECT * FROM {$this->tbl_check($tbl)} LIMIT 1;");
     $this->get_last_stmt = $q->queryString;
 
     $q->closeCursor();
@@ -274,7 +328,7 @@ class GxConn {
    * @return array Column info.
    */
   public function run_col_info($tbl) {
-    $q = $this->c->prepare("SHOW COLUMNS FROM {$this->tbl_check($tbl)};");
+    $q = $this->conn->prepare("SHOW COLUMNS FROM {$this->tbl_check($tbl)};");
     $this->get_last_stmt = $q->queryString;
 
     $q->closeCursor();
@@ -290,7 +344,7 @@ class GxConn {
    * @return array Columns data.
    */
   public function run_col_data($col, $tbl) {
-    $q = $this->c->prepare("SELECT {$this->col_check($col)} FROM {$this->tbl_check($tbl)};");
+    $q = $this->conn->prepare("SELECT {$this->col_check($col)} FROM {$this->tbl_check($tbl)};");
     $this->get_last_stmt = $q->queryString;
 
     $q->closeCursor();
@@ -312,14 +366,13 @@ class GxConn {
    */
   public function run_col_exists($col, $tbl) {
     try {
-      $q = $this->c->prepare("SELECT {$this->col_check($col)} FROM {$this->tbl_check($tbl)} LIMIT 1;");
+      $q = $this->conn->prepare("SELECT {$this->col_check($col)} FROM {$this->tbl_check($tbl)} LIMIT 1;");
       $this->get_last_stmt = $q->queryString;
       $q->closeCursor();
       $q->execute();
 
       return true;
-    }
-    catch (PDOException $e) {
+    } catch (PDOException $e) {
       return false;
     }
   }
@@ -330,7 +383,7 @@ class GxConn {
    * @return integer The row count.
    */
   public function run_row_total($tbl) {
-    $q = $this->c->prepare("SELECT COUNT(*) FROM {$this->tbl_check($tbl)};");
+    $q = $this->conn->prepare("SELECT COUNT(*) FROM {$this->tbl_check($tbl)};");
     $this->get_last_stmt = $q->queryString;
 
     $q->closeCursor();
@@ -347,7 +400,7 @@ class GxConn {
    */
   public function run_row_data($row, $tbl) {
     $row = (int) $row;
-    $q = $this->c->prepare("SELECT * FROM {$this->tbl_check($tbl)};");
+    $q = $this->conn->prepare("SELECT * FROM {$this->tbl_check($tbl)};");
     $this->get_last_stmt = $q->queryString;
 
     $q->closeCursor();
@@ -390,7 +443,7 @@ class GxConn {
     $obj["cols"] = $cols;
 
     //rows
-    $q = $this->c->prepare("SELECT * FROM $tbl;");
+    $q = $this->conn->prepare("SELECT * FROM $tbl;");
     $q->closeCursor();
     $q->execute();
 
@@ -420,9 +473,9 @@ class GxConn {
    * @param integer [$paginateAt = 0]       Paginate after N rows of data. Works with the $pgQueryName param.
    * @param string [$pgQueryName = "pg"]    The paginate HTML query string name.
    * @param boolean [$defaultStyles = true] Assigns default inline styles.
+   * @throws GxConnException
    */
   public function run_tbl_to_html($stmt, $paginateAt = 0, $pgQueryName = "pg", $defaultStyles = true) {
-    $this->semicolon_check($stmt);
     $this->blacklist_check($stmt);
 
     $bg_color = "#CCC";
@@ -433,7 +486,7 @@ class GxConn {
     $row_num = 1;
 
     //col names
-    $qNames = $this->c->prepare($stmt . ";");
+    $qNames = $this->conn->prepare($stmt . ";");
     $qNames->closeCursor();
     $qNames->execute();
 
@@ -443,7 +496,7 @@ class GxConn {
     //main query
     if ($paginateAt) {
       if (stristr($stmt, "LIMIT") || stristr($stmt, "OFFSET")) {
-        throw new GXConnException("Your 'run_tbl_to_html' statement cannot have a LIMIT or OFFSET clause.", 5);
+        throw new GxConnException("Your 'run_tbl_to_html' statement cannot have a LIMIT or OFFSET clause.", 6);
       }
 
       $totalPgs = ceil($qNames->rowCount() / $paginateAt);
@@ -456,7 +509,7 @@ class GxConn {
       $stmt .= " LIMIT $paginateAt OFFSET " . $paginateAt * ($pgQuery - 1);
     }
 
-    $q = $this->c->prepare($stmt . ";");
+    $q = $this->conn->prepare($stmt . ";");
     $q->closeCursor();
     $q->execute();
 
@@ -549,13 +602,12 @@ class GxConn {
     }
   }
 
-
 }
 
-//---------------------
+
 
 /**
- * Custom exception.
+ * Extends the PHP Exception class to add a custom message format.
  */
 class GxConnException extends Exception {
   /**
@@ -571,224 +623,7 @@ class GxConnException extends Exception {
    * @return string Return a full stringified error message.
    */
   public function __toString() {
-    return __CLASS__ . ": [error #{$this->code}] {$this->message}";
-  }
-
-  /**
-   * @return string The error message.
-   */
-  public function message() {
-    return $this->message;
-  }
-
-  /**
-   * @return integer The error code.
-   */
-  public function code() {
-    return $this->code;
-  }
-
-}
-
-//---------------------
-
-/**
-  * DSN helper. This class is filled with static methods that return DSN strings. Use it to simplify the database connection process.
-  */
-class GXConnDSNHelper {
-  /**
-   * DSN for MySQL.
-   * @param  string [$db = ""]
-   * @param  string [$host = "localhost"]
-   * @param  string [$port = ""]
-   * @return string
-   */
-  public static function dsn_mysql($db = "", $host = "localhost", $port = "") {
-    return "mysql:host=$host;port=$port;dbname=$db";
-  }
-
-  /**
-   * DSN for MySQL Socket.
-   * @param  string [$db = ""]
-   * @param  string $socket
-   * @return string
-   */
-  public static function dsn_mysqlSocket($db = "", $socket) {
-    return "mysql:unix_socket=$socket;dbname=$db";
-  }
-
-  /**
-   * DSN for sqlite.
-   * @param  string [$db = ""]
-   * @return string
-   */
-  public static function dsn_sqlite($db = "") {
-    return "sqlite:$db";
-  }
-
-  /**
-   * DSN for sqlite Memory.
-   * @return string
-   */
-  public static function dsn_sqliteMemory() {
-    return "sqlite::memory:";
-  }
-
-  /**
-   * DSN for sqlite2.
-   * @param  string [$db = ""]
-   * @return string
-   */
-  public static function dsn_sqlite2($db = "") {
-    return "sqlite2:$db";
-  }
-
-  /**
-   * DSN for sqlite2 Memory.
-   * @return string
-   */
-  public static function dsn_sqlite2Memory() {
-    return "sqlite2::memory:";
-  }
-
-  /**
-   * DSN for MS SQL.
-   * @param  string [$db = ""]
-   * @param  string [$host = "localhost"]
-   * @return string
-   */
-  public static function dsn_mssql($db = "", $host = "localhost") {
-    return "mssql:host=$host;dbname=$db";
-  }
-
-  /**
-   * DSN for Sybase.
-   * @param  string [$db = ""]
-   * @param  string [$host = "localhost"]
-   * @return string
-   */
-  public static function dsn_sybase($db = "", $host = "localhost") {
-    return "sybase:host=$host;dbname=$db";
-  }
-
-  /**
-   * DSN for DBLib.
-   * @param  string [$db = ""]
-   * @param  string [$host = "localhost"]
-   * @return string
-   */
-  public static function dsn_dblib($db = "", $host = "localhost") {
-    return "dblib:host=$host;dbname=$db";
-  }
-
-  /**
-   * DSN for PgSQL.
-   * @param  string [$db = ""]
-   * @param  string [$host = "localhost"]
-   * @param  string [$port = ""]
-   * @return string
-   */
-  public static function dsn_pgsql($db = "", $host = "localhost", $port = "") {
-    return "pgsql:host=$host;port=$port;dbname=$db";
-  }
-
-  /**
-   * DSN for Firebird.
-   * @param  string [$db = ""]
-   * @param  string [$host = "localhost"]
-   * @return string
-   */
-  public static function dsn_firebird($db = "", $host = "localhost") {
-    return "firebird:host=$host;dbname=$db";
-  }
-
-  /**
-   * DSN for OCI.
-   * @param  string [$db = ""]
-   * @return string
-   */
-  public static function dsn_oci($db = "") {
-    return "oci:dbname=$db";
-  }
-
-  /**
-   * DSN for Informix INI.
-   * @param  string $ini
-   * @return string
-   */
-  public static function dsn_informix_ini($ini) {
-    return "informix:DSN=$ini";
-  }
-
-  /**
-   * DSN for Informix.
-   * @param  string [$db = ""]
-   * @param  string $host
-   * @param  string $service
-   * @param  string $server
-   * @param  string $protocol
-   * @param  string $enable_scrollable_cursors
-   * @return string
-   */
-  public static function dsn_informix($db = "", $host, $service, $server, $protocol, $enable_scrollable_cursors) {
-    return "informix:host=$host;service=$service;database=$db;server=$server;protocol=$protocol;EnableScrollableCursors=$enable_scrollable_cursors";
-  }
-
-  /**
-   * DSN for IBM INI.
-   * @param  string $ini
-   * @return string
-   */
-  public static function dsn_ibm_ini($ini) {
-    return "ibm:DSN=$ini";
-  }
-
-  /**
-   * DSN for IBM.
-   * @param  string [$db = ""]
-   * @return string
-   */
-  public static function dsn_ibm($db = "") {
-    return "ibm:DRIVER=$driver;DATABASE=$db;HOSTNAME=$host;PORT=$port;PROTOCOL=$protocol";
-  }
-
-  /**
-   * DSN for ODBC.
-   * @param  string [$db = ""]
-   * @param  string $driver
-   * @param  string $protocol
-   * @param  string $host
-   * @param  string $port
-   * @return string
-   */
-  public static function dsn_odbc($db = "", $driver, $protocol, $host, $port) {
-    return "odbc:$db";
-  }
-
-  /**
-   * DSN for ODBC DB2.
-   * @param  string [$db = ""]
-   * @param  string $driver
-   * @param  string $protocol
-   * @param  string $uid
-   * @param  string $pw
-   * @param  string $host
-   * @param  string $port
-   * @return string
-   */
-  public static function dsn_odbc_db2($db = "", $driver, $protocol, $uid, $pw, $host, $port) {
-    return "odbc:DRIVER=$driver;HOSTNAME=$host;PORT=$port;DATABASE=$db;PROTOCOL=$protocol;UID=$uid;PWD=$pw";
-  }
-
-  /**
-   * DSN for ODBC Access.
-   * @param  string [$db = ""]
-   * @param  string $driver
-   * @param  string $uid
-   * @return string
-   */
-  public static function dsn_odbc_access($db = "", $driver, $uid) {
-    return "odbc:Driver=$driver;Dbq=$db;Uid=$uid";
+    return __CLASS__ . ": [{$this->code}]: {$this->message}";
   }
 
 }
