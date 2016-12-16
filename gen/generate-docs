@@ -1,0 +1,49 @@
+<?php
+
+/**
+ * @author Leandro Silva | Grafluxe, 2016
+ */
+
+/**
+ * Run this file to generate documentation for this project.
+ *
+ * Use:
+ * php <this-file>
+ *
+ * Example:
+ * php project/gen/generate-docs
+ */
+
+$script_dir = dirname($argv[0]);
+$doc_path = dirname($script_dir);
+$gendoc = "$script_dir/gendoc.php";
+
+if (basename($script_dir) !== "gen") {
+  exit("This file should live your projects 'gen' folder." . PHP_EOL);
+}
+
+if (file_exists($gendoc)) {
+  echo shell_exec("php $gendoc $doc_path");
+} else {
+  echo "Downloading gendoc..." . PHP_EOL;
+
+  $ch = curl_init();
+
+  curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
+  curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+  curl_setopt($ch, CURLOPT_URL, "https://gist.github.com/Grafluxe/b6521901216a3c8e09f36cc31988a66c/raw");
+
+  $data = curl_exec($ch);
+  $info = curl_getinfo($ch);
+
+  if ($info["http_code"] !== 200) {
+    exit("The gendoc download failed." . PHP_EOL);
+  }
+
+  file_put_contents($gendoc, $data);
+
+  curl_close($ch);
+  echo shell_exec("php $gendoc $doc_path");
+}
+
+?>
