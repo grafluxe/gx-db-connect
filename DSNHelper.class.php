@@ -1,15 +1,15 @@
 <?php
 /**
- * @author Leandro Silva | Grafluxe, 2012-16
+ * @author Leandro Silva
+ * @copyright 2012, 2016 Leandro Silva (http://grafluxe.com)
  * @license MIT
+ *
+ * @classdesc Data Source Name (DSN) helper. This class is filled with static
+ * methods that return DSN strings. Use it to simplify the database connection
+ * process. Note that the 'db' method parameters can be set to an empty string
+ * if you plan to assign the database later.
  */
 
-/**
-  * Data Source Name (DSN) helper. This class is filled with static methods that
-  * return DSN strings. Use it to simplify the database connection process. Note
-  * that the 'db' method parameters can be set to an empty string if you plan to
-  * assign the database later.
-  */
 class DSNHelper {
   /**
    * DSN for CUBRID.

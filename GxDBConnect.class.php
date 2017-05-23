@@ -1,16 +1,14 @@
 <?php
 /**
- * @author Leandro Silva | Grafluxe, 2012-2016
+ * @author Leandro Silva
+ * @copyright 2012, 2016 Leandro Silva (http://grafluxe.com)
  * @license MIT
- */
-
-/**
- * Securely execute commands on a database using PHP Data Objects — many security features added.
- * Note that methods prepended with 'run_' execute specific statements; use the 'query' method for
- * custom queries.
  *
- * Samples:
+ * @classdesc Securely execute commands on a database using PHP Data Objects — many security
+ * features added. Note that methods prepended with 'run_' execute specific statements; use
+ * the 'query' method for custom queries.
  *
+ * @example
  * This sample includes tight security.
  *
  * Use value binding, a whitelist, and checker methods if you plan to construct your SQL statements
@@ -69,6 +67,7 @@
  * </pre>
  *
  */
+
 class GxDBConnect {
   /** @var object The PDO connection object. */
   public $conn;
