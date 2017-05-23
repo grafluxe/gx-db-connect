@@ -82,7 +82,7 @@ class GxDBConnect {
   public $get_last_stmt;
 
   /** @var string The release version. */
-  public static $version = "3.0.0";
+  public static $version = "3.1.0";
 
   /** @var string Set to true to output uncaught errors. Defaults to false for better security. */
   public static $echo_uncaught_errors = false;
