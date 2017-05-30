@@ -1,4 +1,4 @@
-# GxDBConnect
+# gx-db-connect
 
 Easily and **securely** execute commands on a database using PHP Data Objects (PDO).
 
@@ -88,7 +88,7 @@ try {
 
 ## Documentation
 
-See the documentation online at <http://grafluxe.com/doc/php/GxDBConnect>.
+See the documentation online at <http://grafluxe.com/o/doc/gx-db-connect/>.
 
 If you need to *generate* the documentation yourself, run the generate-docs script by doing the following:
 
