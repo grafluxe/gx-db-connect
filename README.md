@@ -12,6 +12,7 @@ To help prevent SQL injection, the following security measures are included:
       - "DROP" = Disallows DROP statements.
       - "DELETE" = Disallows DELETE statements.
       - "--" = Helps to project against comment attacks.
+      - "#" = Helps to project against comment attacks.
       - "/*" =  Helps to project against comment attacks.
       - "xp_" = Helps to prevent calls to SQL Server extended stored procedures.
       - ";" = Helps to prevent new statement injections.
@@ -88,7 +89,7 @@ try {
 
 ## Documentation
 
-See the documentation online at <http://grafluxe.com/o/doc/gx-db-connect/>.
+See the documentation online at <http://grafluxe.com/o/doc/gx-db-connect/class-GxDBConnect.html>.
 
 If you need to *generate* the documentation yourself, run the generate-docs script by doing the following:
 

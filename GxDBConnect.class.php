@@ -87,7 +87,7 @@ class GxDBConnect {
   /** @var string Set to true to output uncaught errors. Defaults to false for better security. */
   public static $echo_uncaught_errors = false;
 
-  private $blacklist = array("DROP", "DELETE", "--", "/*", "xp_", ";");
+  private $blacklist = array("DROP", "DELETE", "--", "#", "/*", "xp_", ";");
 
  /**
    * Constructor. By default, the PDO attribute ATTR_EMULATE_PREPARES is set to false and ATTR_ERRMODE is set to ERRMODE_EXCEPTION.
@@ -163,7 +163,7 @@ class GxDBConnect {
    * Adds a value to your blacklist filter. Before any query is run, your statement will be checked for
    * any blacklisted strings. If a blacklisted string is found, the query will not be executed and a
    * GxDBException exception will be thrown. By default, the blacklist filter contains the following:
-   * ["DROP", "DELETE", "--", "/*", "xp_", ";"]
+   * ["DROP", "DELETE", "--", "#", "/*", "xp_", ";"]
    * @param string $str A string to blacklist. Letter case does not matter.
    */
   public function blacklist_add($str) {
